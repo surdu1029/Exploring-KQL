@@ -1,0 +1,6 @@
+// Who clicked a specific Safe Links / URL (OfficeActivity)
+// Replace <URL> with the URL (or a unique part of it). Add a time filter if needed.
+OfficeActivity
+| where Operation == "Click Alowed"
+| where Parameters has "<URL>"
+| project TimeGenerated, UserId=Userid, Operation, ClientIP, UserAgent, IP

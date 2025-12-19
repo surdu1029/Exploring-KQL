@@ -1,0 +1,8 @@
+// Show which SharePoint domains are being accessed (CloudAppEvents)
+// Update <EXCLUDED_SHAREPOINT_DOMAIN> if you need to exclude a specific origin domain.
+CloudAppEvents
+| extend OriginatingDomain=tostring(RawEventData.OriginatingDomain)
+| where OriginatingDomain contains "my.sharepoint.com"
+| where OriginatingDomain != "<EXCLUDED_SHAREPOINT_DOMAIN>"
+| summarize Count=count() by OriginatingDomain
+| sort by Count desc

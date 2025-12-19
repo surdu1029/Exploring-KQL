@@ -1,0 +1,9 @@
+// Find events where a specific admin account was used/created/seen in CommonSecurityLog (typically firewall/proxy/syslog)
+// Update start/end and the admin username/pattern.
+let start = datetime(2025-01-13 00:00:00);
+let end   = datetime(2025-01-13 23:59:59);
+CommonSecurityLog
+| extend FormattedTime = format_datetime(TimeGenerated, "yyyy-MM-dd HH:mm:ss")
+| where TimeGenerated between (start .. end)
+| where DestinationUserName contains "<ADMIN_ACCOUNT_OR_PATTERN>"
+| project FormattedTime, DestinationUserName, SourceIP, DestinationIP, DeviceVendor, DeviceProduct, Activity, Message

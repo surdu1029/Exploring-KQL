@@ -1,0 +1,80 @@
+// Correlate a triage email subject containing "Phishing: <NetworkMessageId>" with CloudAppEvents + Defender email tables
+// Replace <SOC_MAILBOX_UPN> and adapt the Subject parsing to your subject format.
+EmailEvents
+| where RecipientEmailAddress == "<SOC_MAILBOX_UPN>"
+| where Subject contains "Phishing:"
+| extend NetworkMessageIdX = extract(@"Phishing:\s*([^|]+)", 1, Subject)
+| extend NetworkMessageIdX = trim(" ", NetworkMessageIdX)
+| extend SubjectX = extract(@"\|\((.*?)\)", 1, Subject)
+| extend CleanTime = strcat(format_datetime((TimeGenerated), 'yyyy-MM-dd'), 'T',
+format_datetime((TimeGenerated), 'HH:mm:ss'), 'Z')
+
+| project CleanTime, NetworkMessageIdX, SubjectX, SenderFromAddress
+
+| join kind=leftouter (
+    CloudAppEvents
+    | project
+        RawEventData_ObjectId = tostring(RawEventData.ObjectId),
+        AccountDisplayName = tostring(AccountDisplayName),
+        RawEventData_P2Sender = tostring(RawEventData.P2Sender),
+        RawEventData_DeliveryMessageInfo_FinalFilterVerdict = tostring(RawEventData.DeliveryMessageInfo.FinalFilterVerdict),
+        RawEventData_SenderIP = tostring(RawEventData.SenderIP)
+    )
+    on $left.NetworkMessageIdX == $right.RawEventData_ObjectId
+
+
+| join kind=leftouter (
+    EmailEvents
+    | project NetworkMessageId, AuthenticationDetails
+) on $left.NetworkMessageIdX == $right.NetworkMessageId
+
+
+| join kind=leftouter (
+    EmailAttachmentInfo
+    | extend
+        FileName = coalesce(FileName, "NA"),
+        SHA256 = coalesce(SHA256, "NA"),
+        AttachmentInfo = strcat("FileName: ", FileName, " | SHA256: ", SHA256)
+    | summarize AllAttachments = strcat_array(make_list(AttachmentInfo), "\n") by NetworkMessageId
+) on $left.NetworkMessageIdX == $right.NetworkMessageId
+
+| join kind=leftouter (
+    EmailUrlInfo
+    | project NetworkMessageId, Url
+
+
+        SanitizedUrl = replace_string(
+            replace_string(
+                replace_string(Url, "https://", "hxxps://"),
+                "http://", "hxxp://"
+            ),
+            ".", "[.]"
+        )
+    | summarize AllUrls = strcat_array(make_list(SanitizedUrl), "\n") by NetworkMessageId
+) on $left.NetworkMessageIdX == $right.NetworkMessageId
+
+
+| extend EmailLink = strcat(
+    "https://security.microsoft.com/emailentity?f=summary",
+    "&startTime=", CleanTime,
+    "&endTime=", CleanTime,
+    "&id=", NetworkMessageIdX,
+    "&recipient=", SenderFromAddress,
+    "&tid=<TENANT_ID>",
+    "&dlExpansionHistory="
+    )
+
+| join kind=leftouter (
+    EmailEvents
+    | project NetworkMessageId, DeliveryLocation, DeliveryAction, ThreatTypes, EmailAction, UrlCount,
+DetectionMethods
+
+) on $left.NetworkMessageIdX == $right.NetworkMessageId
+
+
+| distinct CleanTime, SubjectX, NetworkMessageIdX, AccountDisplayName, ReportedBy=SenderFromAddress,
+Sender=RawEventData_P2Sender, DeliveryLocation, DeliveryAction, ThreatTypes, DetectionMethods,
+EmailAction, Verdict=RawEventData_DeliveryMessageInfo_FinalFilterVerdict,
+SenderIP=RawEventData_SenderIP, AuthenticationDetails, AllAttachments, UrlCount, AllUrls,
+DefenderEmailLink = EmailLink
+| where AccountDisplayName <> "submissiontriagejob"

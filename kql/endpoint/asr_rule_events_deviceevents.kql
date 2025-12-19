@@ -1,0 +1,8 @@
+// List Attack Surface Reduction (ASR) rule events on a device (DeviceEvents)
+// Replace <DEVICE_NAME> and adjust the exclusion for legitimate processes if needed.
+DeviceEvents
+| where DeviceName contains "<DEVICE_NAME>"
+| where ActionType startswith "ASR"
+| where InitiatingProcessCommandLine != ""snowagent.exe" -c snowagent.config  scan"
+| project TimeGenerated, DeviceName, ActionType, FileName, FolderPath, ProcessCommandLine,
+          InitiatingProcessCommandLine, AccountDomain, AccountName
