@@ -21,5 +21,3 @@ This folder contains KQL queries extracted from the provided PDF and sanitized t
 - `kql/endpoint/asr_rule_events_deviceevents.kql` — List ASR rule events for a device
 - `kql/hunting/sensitive_password_files_union.kql` — Consolidated hunt for password/credential file indicators
 
-## Safety
-Before pushing, run a secret scan (e.g., gitleaks/trufflehog) and verify no tenant IDs, real domains, user UPNs, IPs, or hostnames are present.
